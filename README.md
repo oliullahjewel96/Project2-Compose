@@ -1,2 +1,3 @@
 # Project2-Compose
-University assignment
+Jenkins + DinD via Docker Compose.
+
