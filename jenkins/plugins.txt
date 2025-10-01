@@ -1,0 +1,8 @@
+docker-workflow
+git
+workflow-aggregator
+audit-trail
+warnings-ng
+configuration-as-code
+credentials
+job-dsl

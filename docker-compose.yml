@@ -1,2 +1,50 @@
 # will implement in Task 2
 
+version: "3.9"
+
+# CI network so Jenkins can reach DinD securely over TLS
+networks:
+  ci:
+
+volumes:
+  jenkins_home:   # persistent Jenkins data
+  docker_certs:   # TLS certs from DinD shared to Jenkins
+  docker_cache:   # Docker layer/image cache for faster builds
+
+services:
+  # Docker daemon in a container (DinD)
+  dind:
+    image: docker:27-dind
+    privileged: true                  # required for DinD
+    environment:
+      - DOCKER_TLS_CERTDIR=/certs     # enable TLS & auto-manage certs
+    volumes:
+      - docker_certs:/certs
+      - docker_cache:/var/lib/docker
+    networks: [ci]
+
+  # Jenkins with Docker CLI + plugins + security bootstrap
+  jenkins:
+    build:
+      context: ./jenkins
+    image: jenkins-secure:lts
+    depends_on: [dind]
+    networks: [ci]
+    ports:
+      - "8080:8080"                   # Jenkins UI
+      - "50000:50000"                 # inbound agents
+    environment:
+      # Talk to DinD securely over TLS
+      - DOCKER_HOST=tcp://dind:2376
+      - DOCKER_CERT_PATH=/certs/client
+      - DOCKER_TLS_VERIFY=1
+
+      # Skip setup wizard; we seed users & auth via Groovy
+      - JAVA_OPTS=-Djenkins.install.runSetupWizard=false
+
+      # Read passwords from .env (don’t hardcode secrets)
+      - JENKINS_ADMIN_PWD=${JENKINS_ADMIN_PWD}
+      - JENKINS_CI_BOT_PWD=${JENKINS_CI_BOT_PWD}
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - docker_certs:/certs/client:ro
